@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: sift-subscription-auditor
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn run:app --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 60
+    envVars:
+      - key: AI_MODE
+        value: auto
+      - key: AI_BASE_URL
+        value: https://algoholia.com/api/free-llm/v1
+      - key: AI_MODEL
+        value: auto
+      - key: PYTHON_VERSION
+        value: 3.11.9

@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sift — find the subscriptions you forgot you had</title>
+  <meta name="description" content="Sift turns a bank or UPI CSV into a clear subscription audit, then uses AI to explain what to review and draft cancellation emails. Local-first, human-approved.">
+  <meta name="theme-color" content="#f4f1e8">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22><rect width=%2264%22 height=%2264%22 rx=%2216%22 fill=%22%23171914%22/><path d=%22M44 22c-3-3-7-4-11-3-5 1-8 5-7 9 1 5 6 6 10 7 5 1 8 3 7 8-1 5-7 7-12 6-3 0-6-2-8-4%22 stroke=%22%23d9fb68%22 stroke-width=%225%22 fill=%22none%22 stroke-linecap=%22round%22/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <svg class="svg-sprite" aria-hidden="true">
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4"/></symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24"><path d="M12 3l1.6 5.4L19 10l-5.4 1.6L12 17l-1.6-5.4L5 10l5.4-1.6L12 3Z"/><path d="M19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4m8-4v4M3 10h18"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="m4 16 6-6 4 4 6-7"/><path d="M15 7h5v5"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14-5L4 8m0 0V4m0 4h4M4 13a8 8 0 0 0 14 5l2-2m0 0v4m0-4h-4"/></symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v12m0 0 5-5m-5 5-5-5M5 20h14"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v14H6V3Z"/><path d="M14 3v5h5M9 13h5m-5 4h6"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+    <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="m4 7 8 6 8-6"/></symbol>
+  </svg>
+
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Sift home">
+      <span class="brand-mark">s</span>
+      <span class="brand-word">Sift</span>
+      <span class="brand-beta">beta</span>
+    </a>
+    <nav class="main-nav" aria-label="Main">
+      <a href="#overview">Overview</a>
+      <a href="#stack">Subscriptions</a>
+      <a href="#brief">AI brief</a>
+    </nav>
+    <div class="header-actions">
+      <span class="data-chip" id="data-chip"><span class="chip-dot"></span><span id="data-chip-text">Demo data</span></span>
+      <a class="icon-button desktop-only" id="export-link" href="/api/export.csv" title="Export subscriptions as CSV" aria-label="Export subscriptions as CSV">
+        <svg><use href="#i-download"/></svg>
+      </a>
+      <button class="button button-dark button-small" id="import-button" type="button">
+        <svg><use href="#i-upload"/></svg>
+        <span>Import CSV</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="page-shell">
+    <section class="loading-state" id="loading-state" aria-live="polite">
+      <div class="loading-orb"><span></span></div>
+      <p>Reading the fine print…</p>
+      <span class="loading-sub">Finding recurring charges on your device.</span>
+    </section>
+
+    <section class="error-state" id="error-state" hidden>
+      <div class="error-card">
+        <span class="eyebrow">Something went sideways</span>
+        <h1 id="error-title">Sift couldn't load.</h1>
+        <p id="error-message">Try refreshing the page.</p>
+        <button class="button button-dark" id="error-retry" type="button">Try again</button>
+      </div>
+    </section>
+
+    <div id="dashboard" hidden>
+      <section class="hero" id="overview">
+        <div class="hero-content">
+          <div class="hero-eyebrow">
+            <span class="status-dot"></span>
+            <span id="source-label">Demo transaction audit</span>
+            <span class="eyebrow-divider">/</span>
+            <span id="audit-date">just now</span>
+          </div>
+          <h1>Your subscriptions are quietly costing <em id="hero-annual">₹0</em> a year.</h1>
+          <p class="hero-sub" id="hero-sub">Sift found the recurring charges hiding in your statement. Now let’s decide which ones deserve to stay.</p>
+          <div class="hero-actions">
+            <button class="button button-lime" id="review-button" type="button">
+              Review my stack
+              <svg><use href="#i-arrow"/></svg>
+            </button>
+            <button class="button button-ghost-light" id="hero-import" type="button">
+              <svg><use href="#i-upload"/></svg>
+              Use my CSV
+            </button>
+          </div>
+          <div class="trust-line">
+            <svg><use href="#i-shield"/></svg>
+            Transactions stay on this device. Only subscription summaries go to the AI.
+          </div>
+        </div>
+
+        <div class="hero-art" aria-hidden="true">
+          <div class="hero-stamp">
+            <span class="stamp-kicker">AI spotted</span>
+            <strong id="hero-spot">4 things</strong>
+            <span class="stamp-sub">worth a closer look</span>
+          </div>
+          <div class="receipt">
+            <div class="receipt-top">
+              <div>
+                <span class="receipt-kicker">SIFT / MONTHLY</span>
+                <strong>Subscription receipt</strong>
+              </div>
+              <span class="receipt-badge">AUTO</span>
+            </div>
+            <div class="receipt-lines" id="receipt-lines"></div>
+            <div class="receipt-total">
+              <span>Annual total</span>
+              <strong id="receipt-total">₹0</strong>
+            </div>
+            <div class="receipt-foot">
+              <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="hero-coins coin-one">₹</div>
+          <div class="hero-coins coin-two">₹</div>
+        </div>
+      </section>
+
+      <section class="stats-grid" aria-label="Subscription statistics">
+        <article class="stat-card">
+          <div class="stat-label"><span>Monthly run-rate</span><span class="stat-index">01</span></div>
+          <strong id="stat-monthly">₹0</strong>
+          <p id="stat-monthly-note">across all detected plans</p>
+        </article>
+        <article class="stat-card stat-accent">
+          <div class="stat-label"><span>Due in 30 days</span><span class="stat-index">02</span></div>
+          <strong id="stat-upcoming">₹0</strong>
+          <p id="stat-upcoming-note">from 0 renewals</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label"><span>Plans tracked</span><span class="stat-index">03</span></div>
+          <strong id="stat-count">0</strong>
+          <p id="stat-count-note">from your transactions</p>
+        </article>
+        <article class="stat-card">
+          <div class="stat-label"><span>Price changes</span><span class="stat-index">04</span></div>
+          <strong id="stat-hikes">0</strong>
+          <p id="stat-hikes-note">detected in the data</p>
+        </article>
+      </section>
+
+      <div class="workspace">
+        <section class="stack-panel" id="stack">
+          <div class="section-heading split-heading">
+            <div>
+              <span class="kicker">The full picture</span>
+              <h2>Your stack, line by line.</h2>
+            </div>
+            <div class="filter-tabs" role="tablist" aria-label="Filter subscriptions">
+              <button class="filter-tab is-active" data-filter="all" role="tab" aria-selected="true" type="button">All <span id="count-all">0</span></button>
+              <button class="filter-tab" data-filter="review" role="tab" aria-selected="false" type="button">Needs a look <span id="count-review">0</span></button>
+              <button class="filter-tab" data-filter="cancel" role="tab" aria-selected="false" type="button">Cancelling <span id="count-cancel">0</span></button>
+            </div>
+          </div>
+
+          <div class="plan-strip" id="plan-strip">
+            <div class="plan-strip-copy">
+              <span class="plan-dot"></span>
+              <div>
+                <strong id="plan-title">Nothing decided yet</strong>
+                <span id="plan-sub">Open a subscription to mark it keep, review or cancel.</span>
+              </div>
+            </div>
+            <div class="plan-value">
+              <span>Confirmed saving</span>
+              <strong id="plan-saving">₹0<span>/yr</span></strong>
+            </div>
+          </div>
+
+          <div class="subscription-grid" id="subscription-grid"></div>
+          <div class="filter-empty" id="filter-empty" hidden>
+            <span class="empty-icon"><svg><use href="#i-check"/></svg></span>
+            <strong>Nothing in this pile.</strong>
+            <p>Try another filter, or open a subscription to make a decision.</p>
+          </div>
+
+          <div class="category-card">
+            <div class="category-copy">
+              <span class="kicker">Where it goes</span>
+              <h3>Monthly spend by category</h3>
+              <p>One category holding several plans is often where the quiet overlap hides.</p>
+            </div>
+            <div class="category-bars" id="category-bars"></div>
+          </div>
+        </section>
+
+        <aside class="ai-panel" id="brief" aria-labelledby="ai-title">
+          <div class="ai-panel-head">
+            <div class="ai-mark"><svg><use href="#i-spark"/></svg></div>
+            <div>
+              <div class="ai-title-row">
+                <h2 id="ai-title">The Sift brief</h2>
+                <span class="ai-live" id="ai-mode">LOCAL</span>
+              </div>
+              <p id="ai-provider">A grounded first read of your stack.</p>
+            </div>
+          </div>
+
+          <div class="ai-body" id="ai-body">
+            <h3 class="ai-headline" id="ai-headline">Looking for the leaks…</h3>
+            <p class="ai-summary" id="ai-summary"></p>
+            <div class="ai-recommendations" id="ai-recommendations"></div>
+            <div class="ai-watchouts" id="ai-watchouts"></div>
+          </div>
+
+          <div class="ai-saving">
+            <div>
+              <span>Flagged to review</span>
+              <strong id="ai-review-value">₹0<span>/yr</span></strong>
+            </div>
+            <p id="ai-saving-note">Sift can see the charge. You decide if it earned it.</p>
+          </div>
+
+          <div class="ai-panel-actions">
+            <button class="button button-dark button-full" id="refresh-ai" type="button">
+              <svg><use href="#i-refresh"/></svg>
+              <span>Run live AI brief</span>
+            </button>
+            <button class="text-button" id="how-ai" type="button">How the AI is used <svg><use href="#i-arrow"/></svg></button>
+          </div>
+        </aside>
+      </div>
+
+      <section class="upcoming-section">
+        <div class="section-heading upcoming-heading">
+          <div>
+            <span class="kicker">The next 30 days</span>
+            <h2>What's about to renew.</h2>
+          </div>
+          <div class="upcoming-total">
+            <span>Coming up</span>
+            <strong id="upcoming-total">₹0</strong>
+          </div>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <section class="closing-card">
+        <div class="closing-copy">
+          <span class="kicker">Human in the loop</span>
+          <h2>The AI drafts. You decide.</h2>
+          <p>No bank connection. No silent cancellations. Sift finds the pattern, shows the evidence and prepares the awkward email. You still hit send.</p>
+          <button class="button button-dark" id="closing-import" type="button">
+            <svg><use href="#i-upload"/></svg>
+            Audit my own statement
+          </button>
+        </div>
+        <div class="closing-steps">
+          <div><span>01</span><p><strong>Detect</strong>Recurring charges are grouped by merchant and rhythm.</p></div>
+          <div><span>02</span><p><strong>Explain</strong>AI reads only the summary, not your raw statement.</p></div>
+          <div><span>03</span><p><strong>Act</strong>You mark decisions and approve every email.</p></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="footer-brand">
+      <span class="brand-mark">s</span>
+      <span>Sift</span>
+    </div>
+    <p>A small, local-first answer to subscription creep. Built with Flask, vanilla JS and a healthy distrust of autopilot.</p>
+    <div class="footer-links">
+      <a href="/api/sample.csv">Sample CSV</a>
+      <a href="/api/export.csv">Export</a>
+      <button id="footer-how" type="button">How it works</button>
+      <span>v1.0</span>
+    </div>
+  </footer>
+
+  <dialog class="dialog upload-dialog" id="upload-dialog" aria-labelledby="upload-title">
+    <div class="dialog-head">
+      <div>
+        <span class="kicker">Your data</span>
+        <h2 id="upload-title">Import a transaction CSV.</h2>
+      </div>
+      <button class="icon-button close-dialog" type="button" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <form id="upload-form">
+      <input type="file" id="file-input" accept=".csv,text/csv" hidden>
+      <button class="dropzone" id="dropzone" type="button">
+        <span class="dropzone-icon"><svg><use href="#i-upload"/></svg></span>
+        <strong id="dropzone-title">Drop your bank or UPI CSV here</strong>
+        <span id="dropzone-sub">or click to choose a file · up to 2 MB</span>
+      </button>
+      <div class="upload-error" id="upload-error" hidden></div>
+      <div class="upload-meta">
+        <div class="upload-requirement">
+          <span>Needs these columns</span>
+          <code>date</code><code>description</code><code>amount</code>
+        </div>
+        <a href="/api/sample.csv" class="inline-link">Download sample CSV <svg><use href="#i-arrow"/></svg></a>
+      </div>
+      <div class="privacy-note">
+        <svg><use href="#i-shield"/></svg>
+        <p><strong>Local-first by default.</strong> Your CSV is parsed on this machine and saved to a local SQLite file. Sift sends only derived subscription summaries to a live AI provider — never raw transactions. Switch to local coach with <code>AI_MODE=local</code>.</p>
+      </div>
+      <div class="dialog-actions">
+        <button class="text-button" id="load-demo" type="button">Or load the demo data</button>
+        <button class="button button-dark" id="analyze-button" type="submit" disabled>
+          <span>Analyse CSV</span>
+          <svg><use href="#i-arrow"/></svg>
+        </button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="dialog sheet" id="detail-dialog" aria-labelledby="detail-title">
+    <div id="detail-content"></div>
+  </dialog>
+
+  <dialog class="dialog email-dialog" id="email-dialog" aria-labelledby="email-title">
+    <div class="dialog-head">
+      <div>
+        <span class="kicker">AI draft · human approval</span>
+        <h2 id="email-title">Cancellation email.</h2>
+      </div>
+      <button class="icon-button close-dialog" type="button" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <p class="dialog-intro">This is a starting point, not a sent message. Check the details, edit the tone, then copy it into your own email client. Sift never sends it for you.</p>
+    <div class="email-loading" id="email-loading">
+      <span class="mini-spinner"></span> Writing a short, firm request…
+    </div>
+    <div id="email-fields" hidden>
+      <label class="field-label" for="email-subject">Subject</label>
+      <input class="text-field" id="email-subject" type="text">
+      <label class="field-label" for="email-body">Body</label>
+      <textarea class="text-field email-body" id="email-body" rows="12"></textarea>
+      <div class="email-meta">
+        <span id="email-provider">Draft ready</span>
+        <button class="text-button" id="redraft-email" type="button"><svg><use href="#i-refresh"/></svg> Redraft</button>
+      </div>
+      <div class="dialog-actions">
+        <button class="text-button" id="email-reason-toggle" type="button">Add a reason</button>
+        <button class="button button-dark" id="copy-email" type="button"><svg><use href="#i-copy"/></svg> Copy email</button>
+      </div>
+      <div class="reason-wrap" id="reason-wrap" hidden>
+        <label class="field-label" for="email-reason">Why are you cancelling? (optional)</label>
+        <input class="text-field" id="email-reason" type="text" placeholder="e.g. I no longer use it and the price went up">
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="dialog how-dialog" id="how-dialog" aria-labelledby="how-title">
+    <div class="dialog-head">
+      <div>
+        <span class="kicker">Under the hood</span>
+        <h2 id="how-title">What the AI actually does.</h2>
+      </div>
+      <button class="icon-button close-dialog" type="button" aria-label="Close"><svg><use href="#i-close"/></svg></button>
+    </div>
+    <div class="how-grid">
+      <div class="how-item">
+        <span class="how-number">01</span>
+        <h3>Python finds the rhythm</h3>
+        <p>Not AI. A deterministic detector normalises merchant names, groups charges and checks the interval, amount stability and recency. It needs three monthly charges (or two annual) before it calls something recurring.</p>
+      </div>
+      <div class="how-item">
+        <span class="how-number">02</span>
+        <h3>AI reads the summary</h3>
+        <p>The live model receives merchant names, categories, prices, cadence, renewals, price changes and your usage decisions. It does not receive dates, transaction references or the raw CSV. It returns a ranked brief in strict JSON.</p>
+      </div>
+      <div class="how-item">
+        <span class="how-number">03</span>
+        <h3>Code validates the answer</h3>
+        <p>Every merchant the model names is matched back to a detected subscription. Savings are recalculated from the data, not trusted from the model. A model recommendation cannot override your “keep” decision.</p>
+      </div>
+      <div class="how-item">
+        <span class="how-number">04</span>
+        <h3>You approve the action</h3>
+        <p>Sift never connects to a bank, cancels a plan or sends an email. The final cancellation email is editable and copied by you. That is deliberate: the expensive decision stays human.</p>
+      </div>
+    </div>
+    <div class="how-footer">
+      <span class="provider-pill">Zero-key demo: Algoholia (OpenAI-compatible) · local fallback included</span>
+      <button class="button button-dark close-dialog" type="button">Got it</button>
+    </div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+    <span class="toast-icon"><svg><use href="#i-check"/></svg></span>
+    <span id="toast-message">Done.</span>
+  </div>
+
+  <div class="processing-overlay" id="processing-overlay" hidden aria-live="polite">
+    <div class="processing-card">
+      <div class="loading-orb"><span></span></div>
+      <strong id="processing-title">Reading the fine print…</strong>
+      <span id="processing-sub">Finding recurring charges on your device.</span>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+</body>
+</html>
